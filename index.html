@@ -102,7 +102,6 @@ header {
 
 .canvas-wrapper {
   position: relative;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -714,6 +713,37 @@ header {
   animation: blink 1s infinite;
 }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* ── Resize handle ── */
+.resize-handle {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: ew-resize;
+  background: transparent;
+  position: relative;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.resize-handle:hover, .resize-handle.dragging { background: var(--border); }
+
+/* ── Easter egg ── */
+#easter-egg-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+  cursor: pointer;
+  overflow: hidden;
+}
+#easter-egg-overlay.active { display: block; }
+#easter-egg-img {
+  position: absolute;
+  width: 180px;
+  border-radius: 8px;
+  pointer-events: none;
+  image-rendering: auto;
+}
 </style>
 </head>
 <body>
@@ -747,6 +777,9 @@ header {
       </div>
     </div>
   </div>
+
+  <!-- Resize Handle -->
+  <div class="resize-handle" id="resizeHandle"></div>
 
   <!-- Controls Panel -->
   <aside class="controls-panel" id="controlsPanel">
@@ -832,6 +865,9 @@ header {
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="easter-egg-overlay">
+  <img id="easter-egg-img" src="easter-egg.png" alt="">
+</div>
 
 <script>
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -853,11 +889,11 @@ const state = {
     brightness: 0,
     contrast:   0,
     mix:        100,
-    blur:       0,
-    grain:      0,
+    blur:       9,
+    grain:      47,
     vignette:   0,
   },
-  grainMode: 'mixed', // 'dark' | 'mixed' | 'light'
+  grainMode: 'light', // 'dark' | 'mixed' | 'light'
   presets: [],
   activePreset: 'bloom',
   animFrame: null,
@@ -966,8 +1002,8 @@ const ADJ_CONFIG = [
   { key: 'brightness', label: 'Brightness', min: -100, max: 100,  default: 0,   fmt: v => (v>0?'+':'')+v       },
   { key: 'contrast',   label: 'Contrast',   min: -100, max: 100,  default: 0,   fmt: v => (v>0?'+':'')+v       },
   { key: 'mix',        label: 'Intensity',  min: 0,    max: 100,  default: 100, fmt: v => v+'%'                },
-  { key: 'blur',       label: 'Blur',       min: 0,    max: 20,   default: 0,   fmt: v => v>0?v+'px':'off'     },
-  { key: 'grain',      label: 'Grain',      min: 0,    max: 100,  default: 0,   fmt: v => v>0?v+'%':'off'      },
+  { key: 'blur',       label: 'Blur',       min: 0,    max: 20,   default: 9,   fmt: v => v>0?v+'px':'off'     },
+  { key: 'grain',      label: 'Grain',      min: 0,    max: 100,  default: 47,  fmt: v => v>0?v+'%':'off'      },
   { key: 'vignette',   label: 'Vignette',   min: 0,    max: 100,  default: 0,   fmt: v => v>0?v+'%':'off'      },
 ];
 
@@ -1320,6 +1356,11 @@ function renderPresets() {
       state.stops = preset.stops.map(s => ({...s}));
       state.activePreset = preset.id;
       selectedStopId = null;
+      if (preset.adjustments) {
+        Object.assign(state.adjustments, preset.adjustments);
+        state.grainMode = preset.grainMode || 'light';
+        renderSliders();
+      }
       renderHandles();
       updateGradientPreview();
       updateStopEditor();
@@ -1350,10 +1391,12 @@ document.getElementById('savePresetBtn').addEventListener('click', () => {
   if (!name || !name.trim()) return;
 
   const preset = {
-    id:     'user-' + Date.now(),
-    name:   name.trim().toUpperCase().slice(0, 12),
-    stops:  state.stops.map(s => ({...s})),
-    isUser: true,
+    id:          'user-' + Date.now(),
+    name:        name.trim().toUpperCase().slice(0, 12),
+    stops:       state.stops.map(s => ({...s})),
+    adjustments: { ...state.adjustments },
+    grainMode:   state.grainMode,
+    isUser:      true,
   };
 
   const saved = JSON.parse(localStorage.getItem('gradmap-presets') || '[]');
@@ -1415,7 +1458,7 @@ function renderSliders() {
 
 document.getElementById('resetAdjBtn').addEventListener('click', () => {
   ADJ_CONFIG.forEach(c => { state.adjustments[c.key] = c.default; });
-  state.grainMode = 'mixed';
+  state.grainMode = 'light';
   renderSliders();
   if (state.source) renderFrame();
 });
@@ -1744,7 +1787,7 @@ document.getElementById('grdInput').addEventListener('change', e => {
 
     // Generate unique id
     const id = 'grd_' + Date.now();
-    const preset = { id, name: result.name, stops: result.stops };
+    const preset = { id, name: result.name, stops: result.stops, isUser: true };
 
     // Save to user presets
     let saved = [];
@@ -1768,6 +1811,90 @@ document.getElementById('grdInput').addEventListener('change', e => {
   reader.readAsArrayBuffer(file);
   e.target.value = '';
 });
+
+// ─── SIDEBAR RESIZE ───────────────────────────────────────────────────────────
+(function() {
+  const handle = document.getElementById('resizeHandle');
+  const panel  = document.getElementById('controlsPanel');
+  let dragging = false, startX = 0, startW = 0;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startX   = e.clientX;
+    startW   = panel.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = startX - e.clientX; // drag left = wider
+    const newW  = Math.max(220, Math.min(480, startW + delta));
+    panel.style.width = newW + 'px';
+    document.documentElement.style.setProperty('--panel-w', newW + 'px');
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
+// ─── EASTER EGG ───────────────────────────────────────────────────────────────
+(function() {
+  const overlay = document.getElementById('easter-egg-overlay');
+  const img     = document.getElementById('easter-egg-img');
+
+  let x = 0, y = 0, vx = 3.2, vy = 2.4, raf = null;
+  const W_IMG = 180;
+
+  function step() {
+    const ow = overlay.clientWidth;
+    const oh = overlay.clientHeight;
+    const H_IMG = img.offsetHeight || Math.round(W_IMG * 1.25);
+
+    x += vx;
+    y += vy;
+
+    if (x + W_IMG >= ow) { x = ow - W_IMG; vx = -Math.abs(vx); }
+    if (x <= 0)           { x = 0;          vx =  Math.abs(vx); }
+    if (y + H_IMG >= oh)  { y = oh - H_IMG; vy = -Math.abs(vy); }
+    if (y <= 0)           { y = 0;          vy =  Math.abs(vy); }
+
+    img.style.left = x + 'px';
+    img.style.top  = y + 'px';
+    raf = requestAnimationFrame(step);
+  }
+
+  function startEgg() {
+    const ow = overlay.clientWidth;
+    const oh = overlay.clientHeight;
+    x = Math.random() * (ow - W_IMG);
+    y = Math.random() * (oh - 200);
+    overlay.classList.add('active');
+    raf = requestAnimationFrame(step);
+  }
+
+  function stopEgg() {
+    overlay.classList.remove('active');
+    cancelAnimationFrame(raf);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.shiftKey && e.key === 'E') {
+      if (overlay.classList.contains('active')) stopEgg();
+      else startEgg();
+    }
+    if (e.key === 'Escape') stopEgg();
+  });
+
+  overlay.addEventListener('click', stopEgg);
+})();
 
 // ─── RESIZE ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize', updateCanvasSize);
