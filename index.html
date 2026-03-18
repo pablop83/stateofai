@@ -853,6 +853,7 @@ header {
       <!-- Actions -->
       <div style="display:flex;gap:6px;margin-bottom:0">
         <button class="add-stop-btn" id="addStopBtn" style="flex:1">+ ADD STOP</button>
+        <button class="add-stop-btn" id="randomizeStopsBtn" style="width:36px;flex:none" title="Randomize stop positions">⚄</button>
         <button class="add-stop-btn" id="invertStopsBtn" style="width:36px;flex:none" title="Invert gradient">⇄</button>
       </div>
     </div>
@@ -1510,6 +1511,23 @@ function addStopAtPosition(position) {
 
 document.getElementById('invertStopsBtn').addEventListener('click', () => {
   state.stops = state.stops.map(s => ({ ...s, position: 1 - s.position }));
+  state.activePreset = null;
+  renderHandles();
+  updateGradientPreview();
+  updateStopEditor();
+  if (state.source) renderFrame();
+});
+
+document.getElementById('randomizeStopsBtn').addEventListener('click', () => {
+  const n = state.stops.length;
+  // Generate n random values, always anchor first to 0 and last to 1
+  const randoms = [0];
+  for (let i = 1; i < n - 1; i++) randoms.push(Math.random());
+  randoms.push(1);
+  randoms.sort((a, b) => a - b);
+  // Keep colors in current sorted order, assign new positions
+  const sorted = [...state.stops].sort((a, b) => a.position - b.position);
+  sorted.forEach((stop, i) => { stop.position = Math.round(randoms[i] * 1000) / 1000; });
   state.activePreset = null;
   renderHandles();
   updateGradientPreview();
