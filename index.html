@@ -726,6 +726,29 @@ header {
 }
 .resize-handle:hover, .resize-handle.dragging { background: var(--border); }
 
+/* ── Canvas change button ── */
+.canvas-change-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(0,0,0,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s, background 0.12s;
+  z-index: 10;
+  backdrop-filter: blur(6px);
+  color: #333;
+}
+.canvas-wrapper:hover .canvas-change-btn { opacity: 1; }
+.canvas-change-btn:hover { background: rgba(255,255,255,1); }
+
 /* ── Easter egg ── */
 #easter-egg-overlay {
   display: none;
@@ -767,6 +790,13 @@ header {
   <div class="canvas-area" id="canvasArea">
     <div class="canvas-wrapper" id="canvasWrapper">
       <canvas id="outputCanvas" width="900" height="900"></canvas>
+      <button class="canvas-change-btn" id="canvasChangeBtn" title="Change image">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14">
+          <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+          <circle cx="8" cy="8" r="2.5"/>
+          <path d="M6 3l1-2h2l1 2" stroke-linejoin="round"/>
+        </svg>
+      </button>
       <div class="upload-prompt" id="uploadPrompt">
         <div class="upload-dashed"></div>
         <div class="upload-inner">
@@ -899,6 +929,8 @@ const state = {
   animFrame: null,
   isPlaying: false,
   stopIdCounter: 20,
+  isRecording: false,
+  recorder: null,
 };
 
 // ─── BUILT-IN PRESETS ─────────────────────────────────────────────────────────
@@ -1571,6 +1603,11 @@ document.getElementById('uploadPrompt').addEventListener('click', () => {
   document.getElementById('fileInput').click();
 });
 
+// Canvas change button (hover icon when image is loaded)
+document.getElementById('canvasChangeBtn').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
 // Drag & drop on canvas area
 const canvasArea = document.getElementById('canvasArea');
 
@@ -1628,19 +1665,47 @@ document.querySelectorAll('.ratio-btn').forEach(btn => {
   });
 });
 
+// ─── SAVE WITH FOLDER PICKER ──────────────────────────────────────────────────
+async function saveBlob(blob, suggestedName, mimeType, description, ext) {
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description, accept: { [mimeType]: ['.' + ext] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (e) {
+      if (e.name === 'AbortError') return false; // user cancelled picker
+      throw e;
+    }
+  }
+  // Fallback: auto-download
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: suggestedName,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+  return true;
+}
+
 // ─── DOWNLOAD ─────────────────────────────────────────────────────────────────
 document.getElementById('downloadBtn').addEventListener('click', async () => {
+  // Stop recording if active
+  if (state.isRecording) {
+    state.recorder && state.recorder.stop();
+    return;
+  }
+
   if (!state.source) { showToast('UPLOAD AN IMAGE OR VIDEO FIRST'); return; }
 
   if (state.sourceType === 'image') {
-    outputCanvas.toBlob(blob => {
-      const a = Object.assign(document.createElement('a'), {
-        href:     URL.createObjectURL(blob),
-        download: 'gradmap-export.png',
-      });
-      a.click();
-      URL.revokeObjectURL(a.href);
-      showToast('IMAGE EXPORTED');
+    outputCanvas.toBlob(async blob => {
+      const saved = await saveBlob(blob, 'gradmap-export.png', 'image/png', 'PNG Image', 'png');
+      if (saved) showToast('IMAGE EXPORTED');
     }, 'image/png');
 
   } else {
@@ -1653,18 +1718,19 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
     const chunks   = [];
 
+    state.recorder    = recorder;
+    state.isRecording = true;
+
     recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
+      state.isRecording = false;
+      state.recorder    = null;
       const blob = new Blob(chunks, { type: 'video/webm' });
-      const a = Object.assign(document.createElement('a'), {
-        href:     URL.createObjectURL(blob),
-        download: 'gradmap-export.webm',
-      });
-      a.click();
-      URL.revokeObjectURL(a.href);
       document.getElementById('recordingBadge').classList.remove('visible');
       document.getElementById('downloadBtn').textContent = 'EXPORT';
-      showToast('VIDEO EXPORTED');
+      document.getElementById('downloadBtn').classList.remove('active');
+      const saved = await saveBlob(blob, 'gradmap-export.webm', 'video/webm', 'WebM Video', 'webm');
+      if (saved) showToast('VIDEO EXPORTED');
     };
 
     const video = state.source;
@@ -1672,7 +1738,8 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     await new Promise(res => { video.onseeked = res; });
 
     document.getElementById('recordingBadge').classList.add('visible');
-    document.getElementById('downloadBtn').textContent = 'RECORDING…';
+    document.getElementById('downloadBtn').textContent = 'STOP REC';
+    document.getElementById('downloadBtn').classList.add('active');
 
     recorder.start(100);
     state.isPlaying = true;
@@ -1917,6 +1984,17 @@ function init() {
   renderPresets();
   renderSliders();
   updateCanvasSize();
+
+  // Load default image
+  const defaultImg = new Image();
+  defaultImg.onload = () => {
+    state.source     = defaultImg;
+    state.sourceType = 'image';
+    document.getElementById('uploadPrompt').style.display = 'none';
+    renderFrame();
+  };
+  defaultImg.onerror = () => {}; // silently skip if missing
+  defaultImg.src = 'default-image.jpg';
 }
 
 init();
