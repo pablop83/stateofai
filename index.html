@@ -15,7 +15,7 @@
   --surface: #f5f5f5;
   --border: #e8e8e8;
   --text: #111111;
-  --muted: #999999;
+  --muted: #111111;
   --accent: #111111;
   --radius: 5px;
   --panel-w: 288px;
@@ -358,6 +358,133 @@ header {
 }
 .add-stop-btn:hover { border-color: #aaa; color: var(--text); }
 
+/* ── Visual Gradient Handle Editor ── */
+.handles-track {
+  position: relative;
+  height: 22px;
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+
+.stop-handle {
+  position: absolute;
+  width: 14px;
+  transform: translateX(-50%);
+  top: 0;
+  cursor: ew-resize;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.stop-handle-arrow {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid #bbb;
+  flex-shrink: 0;
+  transition: border-bottom-color 0.1s;
+}
+
+.stop-handle-body {
+  width: 14px;
+  height: 13px;
+  border-radius: 2px;
+  border: 1.5px solid #bbb;
+  flex-shrink: 0;
+  transition: border-color 0.1s;
+}
+
+.stop-handle.selected .stop-handle-arrow { border-bottom-color: #111; }
+.stop-handle.selected .stop-handle-body  { border-color: #111; box-shadow: 0 0 0 0.5px #111; }
+
+/* Selected stop editor panel */
+.stop-editor {
+  display: none;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+}
+.stop-editor.visible { display: block; }
+
+.stop-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.stop-editor-label {
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.stop-editor-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.12);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.stop-editor-swatch input[type="color"] {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.stop-editor-pos {
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font);
+  font-size: 10px;
+  text-align: center;
+  padding: 0 3px;
+  color: var(--text);
+  background: white;
+  -moz-appearance: textfield;
+  outline: none;
+}
+.stop-editor-pos:focus { border-color: #aaa; }
+.stop-editor-pos::-webkit-inner-spin-button,
+.stop-editor-pos::-webkit-outer-spin-button { opacity: 0; }
+
+.stop-editor-del {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  border-radius: 3px;
+  font-family: var(--font);
+  transition: all 0.1s;
+  line-height: 1;
+}
+.stop-editor-del:hover { background: #fff0f0; color: #e04040; border-color: #e04040; }
+
 /* ── Presets ── */
 .presets-grid {
   display: grid;
@@ -518,6 +645,26 @@ header {
 }
 
 /* ── Reset link ── */
+.grain-mode-toggle {
+  display: flex;
+  gap: 3px;
+}
+.grain-mode-btn {
+  font-family: var(--font);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--muted);
+  transition: all 0.1s;
+}
+.grain-mode-btn:hover { background: var(--surface); }
+.grain-mode-btn.active { background: var(--text); color: white; border-color: var(--text); }
+
 .reset-link {
   background: none;
   border: none;
@@ -622,9 +769,25 @@ header {
       <div class="section-header">
         <span class="section-title">Gradient Map</span>
       </div>
-      <div class="gradient-preview-label">Click bar to add a stop</div>
+      <!-- Gradient bar (click to add stop) -->
       <div class="gradient-preview" id="gradientPreview"></div>
-      <div class="stops-list" id="stopsList"></div>
+      <!-- Draggable stop handles -->
+      <div class="handles-track" id="handlesTrack"></div>
+      <!-- Selected stop editor -->
+      <div class="stop-editor" id="stopEditor">
+        <div class="stop-editor-row">
+          <div class="stop-editor-swatch" id="stopEditorSwatch">
+            <input type="color" id="stopEditorColor">
+          </div>
+          <span class="stop-editor-label">Color</span>
+          <div style="flex:1"></div>
+          <span class="stop-editor-label">Pos</span>
+          <input type="number" class="stop-editor-pos" id="stopEditorPos" min="0" max="100" step="1">
+          <span class="stop-editor-label">%</span>
+          <button class="stop-editor-del" id="stopEditorDel" title="Delete stop">×</button>
+        </div>
+      </div>
+      <!-- Actions -->
       <div style="display:flex;gap:6px;margin-bottom:0">
         <button class="add-stop-btn" id="addStopBtn" style="flex:1">+ ADD STOP</button>
         <button class="add-stop-btn" id="invertStopsBtn" style="width:36px;flex:none" title="Invert gradient">⇄</button>
@@ -635,7 +798,11 @@ header {
     <div class="section">
       <div class="section-header">
         <span class="section-title">Presets</span>
-        <button class="btn" id="savePresetBtn" style="padding:3px 10px;font-size:8px;">SAVE CURRENT</button>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <button class="btn" id="importGrdBtn" style="padding:3px 10px;font-size:8px;">IMPORT .GRD</button>
+          <input type="file" id="grdInput" accept=".grd" style="display:none">
+          <button class="btn" id="savePresetBtn" style="padding:3px 10px;font-size:8px;">SAVE CURRENT</button>
+        </div>
       </div>
       <div class="presets-grid" id="presetsGrid"></div>
     </div>
@@ -673,14 +840,14 @@ const state = {
   sourceType: null,
   aspectRatio: '1:1',
   stops: [
-    { id: 1, position: 0.00, color: '#1e3535' },
-    { id: 2, position: 0.18, color: '#456f6d' },
-    { id: 3, position: 0.40, color: '#88bab2' },
-    { id: 4, position: 0.58, color: '#c0dcd8' },
-    { id: 5, position: 0.66, color: '#b0a0e0' },
-    { id: 6, position: 0.75, color: '#e04040' },
-    { id: 7, position: 0.88, color: '#e87040' },
-    { id: 8, position: 1.00, color: '#f5e5c0' },
+    { id: 1, position: 0.000, color: '#4f7079' },
+    { id: 2, position: 0.598, color: '#4f7079' },
+    { id: 3, position: 0.685, color: '#4f7179' },
+    { id: 4, position: 0.774, color: '#d1ddd3' },
+    { id: 5, position: 0.864, color: '#cdabfd' },
+    { id: 6, position: 0.899, color: '#ff7749' },
+    { id: 7, position: 0.940, color: '#ff2d19' },
+    { id: 8, position: 1.000, color: '#ff2d19' },
   ],
   adjustments: {
     brightness: 0,
@@ -690,6 +857,7 @@ const state = {
     grain:      0,
     vignette:   0,
   },
+  grainMode: 'mixed', // 'dark' | 'mixed' | 'light'
   presets: [],
   activePreset: 'bloom',
   animFrame: null,
@@ -702,14 +870,14 @@ const BUILTIN_PRESETS = [
   {
     id: 'bloom', name: 'BLOOM',
     stops: [
-      { id: 1, position: 0.00, color: '#1e3535' },
-      { id: 2, position: 0.18, color: '#456f6d' },
-      { id: 3, position: 0.40, color: '#88bab2' },
-      { id: 4, position: 0.58, color: '#c0dcd8' },
-      { id: 5, position: 0.66, color: '#b0a0e0' },
-      { id: 6, position: 0.75, color: '#e04040' },
-      { id: 7, position: 0.88, color: '#e87040' },
-      { id: 8, position: 1.00, color: '#f5e5c0' },
+      { id: 1, position: 0.000, color: '#4f7079' },
+      { id: 2, position: 0.598, color: '#4f7079' },
+      { id: 3, position: 0.685, color: '#4f7179' },
+      { id: 4, position: 0.774, color: '#d1ddd3' },
+      { id: 5, position: 0.864, color: '#cdabfd' },
+      { id: 6, position: 0.899, color: '#ff7749' },
+      { id: 7, position: 0.940, color: '#ff2d19' },
+      { id: 8, position: 1.000, color: '#ff2d19' },
     ]
   },
   {
@@ -938,8 +1106,11 @@ function renderFrame() {
   // Grain
   if (adjustments.grain > 0) {
     const strength = adjustments.grain * 1.2;
+    const mode = state.grainMode;
     for (let i = 0; i < data.length; i += 4) {
-      const n = (Math.random() - 0.5) * strength;
+      let n = (Math.random() - 0.5) * strength;
+      if (mode === 'dark')  n = -Math.abs(n);
+      if (mode === 'light') n =  Math.abs(n);
       data[i]   = Math.max(0, Math.min(255, data[i]   + n));
       data[i+1] = Math.max(0, Math.min(255, data[i+1] + n));
       data[i+2] = Math.max(0, Math.min(255, data[i+2] + n));
@@ -1021,113 +1192,105 @@ function updateGradientPreview() {
     `linear-gradient(to right, ${css})`;
 }
 
-// ─── STOPS LIST ───────────────────────────────────────────────────────────────
-let dragSrcId = null;
+// ─── VISUAL GRADIENT HANDLE EDITOR ───────────────────────────────────────────
+let selectedStopId = null;
+let isDragging     = false;
+let dragId         = null;
 
-function renderStopsList() {
-  const list   = document.getElementById('stopsList');
-  const sorted = [...state.stops].sort((a,b) => a.position - b.position);
-  list.innerHTML = '';
+function renderHandles() {
+  const track = document.getElementById('handlesTrack');
+  track.innerHTML = '';
 
-  sorted.forEach(stop => {
-    const item = document.createElement('div');
-    item.className = 'stop-item';
-    item.draggable = true;
-    item.dataset.id = stop.id;
-
-    const canRemove = state.stops.length > 2;
-    const pct = Math.round(stop.position * 100);
-
-    item.innerHTML = `
-      <div class="drag-handle" title="Drag to reorder">⠿</div>
-      <div class="stop-swatch" style="background:${stop.color}">
-        <input type="color" value="${stop.color}" data-id="${stop.id}">
-      </div>
-      <input type="range" class="stop-slider" min="0" max="100" value="${pct}" data-id="${stop.id}" step="1">
-      <span class="stop-pct" data-id="${stop.id}">${pct}%</span>
-      ${canRemove
-        ? `<button class="stop-remove" data-id="${stop.id}" title="Remove stop">×</button>`
-        : `<div style="width:18px"></div>`}
+  state.stops.forEach(stop => {
+    const handle = document.createElement('div');
+    handle.className = 'stop-handle' + (stop.id === selectedStopId ? ' selected' : '');
+    handle.style.left = (stop.position * 100) + '%';
+    handle.dataset.id = stop.id;
+    handle.innerHTML = `
+      <div class="stop-handle-arrow"></div>
+      <div class="stop-handle-body" style="background:${stop.color}"></div>
     `;
 
-    // Drag events — swaps colors between source and target stop
-    item.addEventListener('dragstart', e => {
-      dragSrcId = stop.id;
-      item.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging');
-      list.querySelectorAll('.stop-item').forEach(i => i.classList.remove('drag-over'));
-    });
-    item.addEventListener('dragover', e => {
+    handle.addEventListener('mousedown', e => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    });
-    item.addEventListener('dragenter', () => {
-      if (dragSrcId !== stop.id) item.classList.add('drag-over');
-    });
-    item.addEventListener('dragleave', () => {
-      item.classList.remove('drag-over');
-    });
-    item.addEventListener('drop', e => {
-      e.preventDefault();
-      item.classList.remove('drag-over');
-      if (dragSrcId === stop.id) return;
-      const src = state.stops.find(s => s.id === dragSrcId);
-      const tgt = state.stops.find(s => s.id === stop.id);
-      if (src && tgt) {
-        [src.color, tgt.color] = [tgt.color, src.color];
-        state.activePreset = null;
-        renderStopsList();
-        updateGradientPreview();
-        if (state.source) renderFrame();
-      }
+      selectedStopId = stop.id;
+      isDragging     = true;
+      dragId         = stop.id;
+      renderHandles();
+      updateStopEditor();
     });
 
-    list.appendChild(item);
-  });
-
-  // Color picker events
-  list.querySelectorAll('input[type="color"]').forEach(input => {
-    input.addEventListener('input', e => {
-      const id = +e.target.dataset.id;
-      const stop = state.stops.find(s => s.id === id);
-      if (!stop) return;
-      stop.color = e.target.value;
-      e.target.closest('.stop-swatch').style.background = stop.color;
-      state.activePreset = null;
-      updateGradientPreview();
-      if (state.source) renderFrame();
-    });
-  });
-
-  // Position slider events
-  list.querySelectorAll('.stop-slider').forEach(slider => {
-    slider.addEventListener('input', e => {
-      const id = +e.target.dataset.id;
-      const stop = state.stops.find(s => s.id === id);
-      if (!stop) return;
-      stop.position = parseInt(e.target.value) / 100;
-      list.querySelector(`.stop-pct[data-id="${id}"]`).textContent = e.target.value + '%';
-      state.activePreset = null;
-      updateGradientPreview();
-      if (state.source) renderFrame();
-    });
-  });
-
-  // Remove events
-  list.querySelectorAll('.stop-remove').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const id = +e.target.dataset.id;
-      state.stops = state.stops.filter(s => s.id !== id);
-      state.activePreset = null;
-      renderStopsList();
-      updateGradientPreview();
-      if (state.source) renderFrame();
-    });
+    track.appendChild(handle);
   });
 }
+
+function updateStopEditor() {
+  const editor = document.getElementById('stopEditor');
+  const stop   = state.stops.find(s => s.id === selectedStopId);
+
+  if (!stop) { editor.classList.remove('visible'); return; }
+  editor.classList.add('visible');
+
+  const swatch = document.getElementById('stopEditorSwatch');
+  swatch.style.background = stop.color;
+  document.getElementById('stopEditorColor').value = stop.color;
+  document.getElementById('stopEditorPos').value   = Math.round(stop.position * 100);
+  document.getElementById('stopEditorDel').style.display =
+    state.stops.length > 2 ? 'flex' : 'none';
+}
+
+// Mouse drag — move handle along bar
+document.addEventListener('mousemove', e => {
+  if (!isDragging || dragId === null) return;
+  const track = document.getElementById('handlesTrack');
+  const rect  = track.getBoundingClientRect();
+  const pos   = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const stop  = state.stops.find(s => s.id === dragId);
+  if (stop) {
+    stop.position = Math.round(pos * 100) / 100;
+    state.activePreset = null;
+    renderHandles();
+    updateGradientPreview();
+    updateStopEditor();
+    if (state.source) renderFrame();
+  }
+});
+
+document.addEventListener('mouseup', () => { isDragging = false; dragId = null; });
+
+// Stop editor controls
+document.getElementById('stopEditorColor').addEventListener('input', e => {
+  const stop = state.stops.find(s => s.id === selectedStopId);
+  if (!stop) return;
+  stop.color = e.target.value;
+  document.getElementById('stopEditorSwatch').style.background = stop.color;
+  state.activePreset = null;
+  renderHandles();
+  updateGradientPreview();
+  if (state.source) renderFrame();
+});
+
+document.getElementById('stopEditorPos').addEventListener('input', e => {
+  const stop = state.stops.find(s => s.id === selectedStopId);
+  if (!stop) return;
+  stop.position = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+  state.activePreset = null;
+  renderHandles();
+  updateGradientPreview();
+  if (state.source) renderFrame();
+});
+
+document.getElementById('stopEditorDel').addEventListener('click', () => {
+  if (state.stops.length <= 2) return;
+  state.stops = state.stops.filter(s => s.id !== selectedStopId);
+  const sorted = [...state.stops].sort((a,b) => a.position - b.position);
+  selectedStopId = sorted[0].id;
+  state.activePreset = null;
+  renderHandles();
+  updateGradientPreview();
+  updateStopEditor();
+  if (state.source) renderFrame();
+});
 
 // ─── PRESETS ──────────────────────────────────────────────────────────────────
 function loadPresets() {
@@ -1156,8 +1319,10 @@ function renderPresets() {
       if (e.target.classList.contains('preset-del')) return;
       state.stops = preset.stops.map(s => ({...s}));
       state.activePreset = preset.id;
-      renderStopsList();
+      selectedStopId = null;
+      renderHandles();
       updateGradientPreview();
+      updateStopEditor();
       if (state.source) renderFrame();
       renderPresets();
     });
@@ -1213,7 +1378,13 @@ function renderSliders() {
     item.innerHTML = `
       <div class="slider-header">
         <span class="slider-label">${cfg.label}</span>
-        <span class="slider-value" id="val-${cfg.key}">${cfg.fmt(val)}</span>
+        ${cfg.key === 'grain' ? `
+          <div class="grain-mode-toggle">
+            <button class="grain-mode-btn ${state.grainMode==='dark' ?'active':''}" data-mode="dark">DARK</button>
+            <button class="grain-mode-btn ${state.grainMode==='mixed'?'active':''}" data-mode="mixed">MIX</button>
+            <button class="grain-mode-btn ${state.grainMode==='light'?'active':''}" data-mode="light">LIGHT</button>
+          </div>
+        ` : `<span class="slider-value" id="val-${cfg.key}">${cfg.fmt(val)}</span>`}
       </div>
       <input type="range" class="slider"
         min="${cfg.min}" max="${cfg.max}" value="${val}" step="1" data-key="${cfg.key}">
@@ -1222,9 +1393,21 @@ function renderSliders() {
     item.querySelector('input').addEventListener('input', e => {
       const v = +e.target.value;
       state.adjustments[cfg.key] = v;
-      document.getElementById('val-' + cfg.key).textContent = cfg.fmt(v);
+      if (cfg.key !== 'grain') {
+        document.getElementById('val-' + cfg.key).textContent = cfg.fmt(v);
+      }
       if (state.source) renderFrame();
     });
+
+    if (cfg.key === 'grain') {
+      item.querySelectorAll('.grain-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.grainMode = btn.dataset.mode;
+          item.querySelectorAll('.grain-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === state.grainMode));
+          if (state.source) renderFrame();
+        });
+      });
+    }
 
     group.appendChild(item);
   });
@@ -1232,6 +1415,7 @@ function renderSliders() {
 
 document.getElementById('resetAdjBtn').addEventListener('click', () => {
   ADJ_CONFIG.forEach(c => { state.adjustments[c.key] = c.default; });
+  state.grainMode = 'mixed';
   renderSliders();
   if (state.source) renderFrame();
 });
@@ -1239,18 +1423,22 @@ document.getElementById('resetAdjBtn').addEventListener('click', () => {
 // ─── ADD STOP ─────────────────────────────────────────────────────────────────
 function addStopAtPosition(position) {
   const color = interpolateGradientColor(state.stops, position);
-  state.stops.push({ id: ++state.stopIdCounter, position, color });
+  const newId = ++state.stopIdCounter;
+  state.stops.push({ id: newId, position, color });
+  selectedStopId = newId;
   state.activePreset = null;
-  renderStopsList();
+  renderHandles();
   updateGradientPreview();
+  updateStopEditor();
   if (state.source) renderFrame();
 }
 
 document.getElementById('invertStopsBtn').addEventListener('click', () => {
   state.stops = state.stops.map(s => ({ ...s, position: 1 - s.position }));
   state.activePreset = null;
-  renderStopsList();
+  renderHandles();
   updateGradientPreview();
+  updateStopEditor();
   if (state.source) renderFrame();
 });
 
@@ -1461,14 +1649,136 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
   }
 });
 
+// ─── GRD IMPORT ───────────────────────────────────────────────────────────────
+function parseGrdFile(buffer) {
+  const u8 = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+
+  // Helper: read 4-char tag at offset
+  function tag(o) {
+    return String.fromCharCode(u8[o], u8[o+1], u8[o+2], u8[o+3]);
+  }
+
+  // Find all byte offsets where a 4-char sequence occurs
+  function findAll(seq) {
+    const results = [];
+    const b0=seq.charCodeAt(0),b1=seq.charCodeAt(1),b2=seq.charCodeAt(2),b3=seq.charCodeAt(3);
+    for (let i=0; i<u8.length-3; i++) {
+      if (u8[i]===b0&&u8[i+1]===b1&&u8[i+2]===b2&&u8[i+3]===b3) results.push(i);
+    }
+    return results;
+  }
+
+  function toHex(r,g,b) {
+    return '#' + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+  }
+
+  const gradients = [];
+
+  // Find gradient name blocks: Nm  TEXT
+  const nmOffsets = findAll('Nm  ');
+  const rgbcOffsets = findAll('RGBC');
+
+  // Parse each RGBC color stop block
+  const colorStops = [];
+  for (const rgbcOff of rgbcOffsets) {
+    // Search forward within 300 bytes for Rd  doub, Grn doub, Bl  doub, Lctnlong
+    let r = null, g = null, b = null, loc = null;
+    const limit = Math.min(rgbcOff + 300, u8.length - 8);
+    for (let i = rgbcOff; i < limit; i++) {
+      if (tag(i) === 'Rd  ' && tag(i+4) === 'doub') { r = dv.getFloat64(i+8, false); }
+      if (tag(i) === 'Grn ' && tag(i+4) === 'doub') { g = dv.getFloat64(i+8, false); }
+      if (tag(i) === 'Bl  ' && tag(i+4) === 'doub') { b = dv.getFloat64(i+8, false); }
+      if (tag(i) === 'Lctn' && tag(i+4) === 'long') { loc = dv.getInt32(i+8, false); }
+    }
+    if (r !== null && g !== null && b !== null && loc !== null) {
+      colorStops.push({ position: loc / 4096, color: toHex(r, g, b) });
+    }
+  }
+
+  if (colorStops.length === 0) return null;
+
+  // Sort by position
+  colorStops.sort((a,b) => a.position - b.position);
+
+  // Add implied endpoints
+  const first = colorStops[0];
+  const last  = colorStops[colorStops.length - 1];
+  const stops = [];
+  if (first.position > 0.001) stops.push({ position: 0, color: first.color });
+  stops.push(...colorStops);
+  if (last.position < 0.999) stops.push({ position: 1, color: last.color });
+
+  // Extract gradient name if available
+  let name = 'IMPORTED';
+  for (const nmOff of nmOffsets) {
+    // TEXT type: Nm  TEXT<4-byte-len><string>
+    if (tag(nmOff+4) === 'TEXT') {
+      const strLen = dv.getUint32(nmOff+8, false);
+      if (strLen > 0 && strLen < 64 && nmOff+12+strLen*2 <= u8.length) {
+        let s = '';
+        for (let i=0; i<strLen; i++) {
+          const cp = dv.getUint16(nmOff+12+i*2, false);
+          if (cp > 0) s += String.fromCharCode(cp);
+        }
+        name = s.trim().toUpperCase() || 'IMPORTED';
+        break;
+      }
+    }
+  }
+
+  return { name, stops: stops.map((s,i) => ({ id: i+1, ...s })) };
+}
+
+document.getElementById('importGrdBtn').addEventListener('click', () => {
+  document.getElementById('grdInput').click();
+});
+
+document.getElementById('grdInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const result = parseGrdFile(ev.target.result);
+    if (!result) { showToast('Could not parse .grd file'); return; }
+
+    // Generate unique id
+    const id = 'grd_' + Date.now();
+    const preset = { id, name: result.name, stops: result.stops };
+
+    // Save to user presets
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem('gradmap_presets') || '[]'); } catch(e) {}
+    saved.push(preset);
+    localStorage.setItem('gradmap_presets', JSON.stringify(saved));
+
+    // Apply
+    state.stops = result.stops.map(s => ({...s}));
+    state.stopIdCounter = result.stops.length + 10;
+    state.activePreset = id;
+    loadPresets();
+    selectedStopId = state.stops[0].id;
+    updateGradientPreview();
+    renderHandles();
+    updateStopEditor();
+    renderPresets();
+    renderFrame();
+    showToast('Imported: ' + result.name);
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
 // ─── RESIZE ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize', updateCanvasSize);
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
   loadPresets();
+  selectedStopId = state.stops[0].id;
   updateGradientPreview();
-  renderStopsList();
+  renderHandles();
+  updateStopEditor();
   renderPresets();
   renderSliders();
   updateCanvasSize();
