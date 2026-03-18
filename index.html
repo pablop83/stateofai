@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRADMAP — Gradient Map Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font: 'Geist Mono', monospace;
+  --bg: #ffffff;
+  --surface: #f5f5f5;
+  --border: #e8e8e8;
+  --text: #111111;
+  --muted: #999999;
+  --accent: #111111;
+  --radius: 5px;
+  --panel-w: 288px;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+header {
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+}
+
+.logo {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.header-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── Buttons ── */
+.btn {
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+  border-radius: var(--radius);
+  color: var(--text);
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--surface); }
+.btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+.btn.primary:hover { background: #333; }
+.btn.active { background: var(--text); color: white; border-color: var(--text); }
+
+/* ── Layout ── */
+.app-layout {
+  display: flex;
+  height: calc(100vh - 44px);
+  margin-top: 44px;
+}
+
+/* ── Canvas Area ── */
+.canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f4f4;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  overflow: hidden;
+  position: relative;
+}
+
+.canvas-wrapper {
+  position: relative;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#outputCanvas {
+  display: block;
+}
+
+/* ── Upload Prompt ── */
+.upload-prompt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: white;
+  transition: background 0.15s;
+}
+
+.upload-prompt.drag-over { background: #f0f0f0; }
+.upload-dashed {
+  position: absolute;
+  inset: 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: border-color 0.15s;
+}
+.upload-prompt.drag-over .upload-dashed { border-color: #aaa; }
+
+.upload-inner {
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.upload-arrow {
+  font-size: 20px;
+  margin-bottom: 14px;
+  opacity: 0.25;
+  display: block;
+}
+
+.upload-title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: #555;
+  margin-bottom: 5px;
+}
+
+.upload-sub {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  opacity: 0.5;
+}
+
+/* ── Controls Panel ── */
+.controls-panel {
+  width: var(--panel-w);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.controls-panel::-webkit-scrollbar { width: 3px; }
+.controls-panel::-webkit-scrollbar-track { background: transparent; }
+.controls-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Sections ── */
+.section {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+}
+
+.section-title {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* ── Aspect Ratio ── */
+.ratio-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.ratio-btn {
+  flex: 1;
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-align: center;
+  transition: all 0.12s;
+}
+.ratio-btn:hover { background: var(--surface); }
+.ratio-btn.active { background: var(--text); color: white; border-color: var(--text); }
+
+/* ── Gradient Editor ── */
+.gradient-preview {
+  height: 22px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  cursor: crosshair;
+  position: relative;
+  transition: border-color 0.12s;
+}
+.gradient-preview:hover { border-color: #ccc; }
+
+.gradient-preview-label {
+  font-size: 8px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.stops-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.stop-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: var(--radius);
+  transition: background 0.1s;
+}
+.stop-item.drag-over {
+  background: #f0f0f0;
+  outline: 1.5px dashed #ccc;
+}
+.stop-item.dragging { opacity: 0.35; }
+
+.drag-handle {
+  cursor: grab;
+  color: #ccc;
+  font-size: 11px;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+  padding: 2px 1px;
+  letter-spacing: -1px;
+}
+.drag-handle:hover { color: #999; }
+.drag-handle:active { cursor: grabbing; }
+
+.stop-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.stop-swatch input[type="color"] {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.stop-slider {
+  flex: 1;
+  height: 2px;
+  accent-color: var(--text);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.stop-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+}
+
+.stop-pct {
+  width: 26px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.stop-remove {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  border-radius: 3px;
+  transition: all 0.1s;
+  font-family: var(--font);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.stop-remove:hover { background: #f0f0f0; color: var(--text); }
+
+.add-stop-btn {
+  width: 100%;
+  padding: 7px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  transition: all 0.12s;
+}
+.add-stop-btn:hover { border-color: #aaa; color: var(--text); }
+
+/* ── Presets ── */
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.preset-item {
+  cursor: pointer;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1.5px solid transparent;
+  transition: all 0.12s;
+  position: relative;
+}
+.preset-item:hover { border-color: #ddd; }
+.preset-item.active { border-color: var(--text); }
+
+.preset-gradient {
+  height: 28px;
+}
+
+.preset-name {
+  font-size: 7.5px;
+  text-align: center;
+  color: var(--muted);
+  padding: 3px 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.06em;
+  background: white;
+}
+.preset-item.active .preset-name { color: var(--text); font-weight: 500; }
+
+.preset-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+  line-height: 1;
+}
+.preset-item:hover .preset-del { opacity: 1; }
+
+/* ── Sliders ── */
+.slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slider-item { display: flex; flex-direction: column; gap: 5px; }
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.slider-label {
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.slider-value {
+  font-size: 9px;
+  color: var(--text);
+  min-width: 32px;
+  text-align: right;
+}
+
+.slider {
+  width: 100%;
+  height: 2px;
+  accent-color: var(--text);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+}
+
+/* ── Video Controls ── */
+.video-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.play-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 9px;
+  flex-shrink: 0;
+  transition: all 0.1s;
+}
+.play-btn:hover { background: var(--surface); }
+
+.video-progress {
+  flex: 1;
+  height: 2px;
+  accent-color: var(--text);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.video-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+.video-time {
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Reset link ── */
+.reset-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 8.5px;
+  color: var(--muted);
+  font-family: var(--font);
+  padding: 0;
+  letter-spacing: 0.08em;
+  transition: color 0.1s;
+}
+.reset-link:hover { color: var(--text); }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(50px);
+  background: var(--text);
+  color: white;
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  transition: transform 0.22s cubic-bezier(.16,1,.3,1);
+  pointer-events: none;
+  z-index: 1000;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── Recording badge ── */
+.recording-badge {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #e74c3c;
+}
+.recording-badge.visible { display: flex; }
+.rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e74c3c;
+  animation: blink 1s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+</style>
+</head>
+<body>
+
+<input type="file" id="fileInput" accept="image/*,video/*" style="display:none">
+
+<header>
+  <div class="logo">GRADMAP</div>
+  <div class="header-right">
+    <div class="recording-badge" id="recordingBadge">
+      <div class="rec-dot"></div>REC
+    </div>
+    <label for="fileInput" class="btn" style="cursor:pointer">UPLOAD</label>
+    <button class="btn primary" id="downloadBtn">EXPORT</button>
+  </div>
+</header>
+
+<div class="app-layout">
+
+  <!-- Canvas Area -->
+  <div class="canvas-area" id="canvasArea">
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <canvas id="outputCanvas" width="900" height="900"></canvas>
+      <div class="upload-prompt" id="uploadPrompt">
+        <div class="upload-dashed"></div>
+        <div class="upload-inner">
+          <span class="upload-arrow">↑</span>
+          <div class="upload-title">DROP IMAGE OR VIDEO</div>
+          <div class="upload-sub">PNG · JPG · GIF · MP4 · WebM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls Panel -->
+  <aside class="controls-panel" id="controlsPanel">
+
+    <!-- Canvas / Aspect Ratio -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Canvas</span>
+      </div>
+      <div class="ratio-buttons">
+        <button class="ratio-btn" data-ratio="16:9">16:9</button>
+        <button class="ratio-btn active" data-ratio="1:1">1:1</button>
+        <button class="ratio-btn" data-ratio="4:3">4:3</button>
+        <button class="ratio-btn" data-ratio="9:16">9:16</button>
+      </div>
+    </div>
+
+    <!-- Gradient Map -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Gradient Map</span>
+      </div>
+      <div class="gradient-preview-label">Click bar to add a stop</div>
+      <div class="gradient-preview" id="gradientPreview"></div>
+      <div class="stops-list" id="stopsList"></div>
+      <div style="display:flex;gap:6px;margin-bottom:0">
+        <button class="add-stop-btn" id="addStopBtn" style="flex:1">+ ADD STOP</button>
+        <button class="add-stop-btn" id="invertStopsBtn" style="width:36px;flex:none" title="Invert gradient">⇄</button>
+      </div>
+    </div>
+
+    <!-- Presets -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Presets</span>
+        <button class="btn" id="savePresetBtn" style="padding:3px 10px;font-size:8px;">SAVE CURRENT</button>
+      </div>
+      <div class="presets-grid" id="presetsGrid"></div>
+    </div>
+
+    <!-- Adjustments -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Adjustments</span>
+        <button class="reset-link" id="resetAdjBtn">RESET</button>
+      </div>
+      <div class="slider-group" id="sliderGroup"></div>
+    </div>
+
+    <!-- Video Controls -->
+    <div class="section" id="videoSection" style="display:none">
+      <div class="section-header">
+        <span class="section-title">Playback</span>
+      </div>
+      <div class="video-controls">
+        <button class="play-btn" id="playBtn">▶</button>
+        <input type="range" class="video-progress" id="videoProgress" min="0" max="100" value="0" step="0.1">
+        <span class="video-time" id="videoTime">0:00</span>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const state = {
+  source: null,
+  sourceType: null,
+  aspectRatio: '1:1',
+  stops: [
+    { id: 1, position: 0.00, color: '#1e3535' },
+    { id: 2, position: 0.18, color: '#456f6d' },
+    { id: 3, position: 0.40, color: '#88bab2' },
+    { id: 4, position: 0.58, color: '#c0dcd8' },
+    { id: 5, position: 0.66, color: '#b0a0e0' },
+    { id: 6, position: 0.75, color: '#e04040' },
+    { id: 7, position: 0.88, color: '#e87040' },
+    { id: 8, position: 1.00, color: '#f5e5c0' },
+  ],
+  adjustments: {
+    brightness: 0,
+    contrast:   0,
+    mix:        100,
+    blur:       0,
+    grain:      0,
+    vignette:   0,
+  },
+  presets: [],
+  activePreset: 'bloom',
+  animFrame: null,
+  isPlaying: false,
+  stopIdCounter: 20,
+};
+
+// ─── BUILT-IN PRESETS ─────────────────────────────────────────────────────────
+const BUILTIN_PRESETS = [
+  {
+    id: 'bloom', name: 'BLOOM',
+    stops: [
+      { id: 1, position: 0.00, color: '#1e3535' },
+      { id: 2, position: 0.18, color: '#456f6d' },
+      { id: 3, position: 0.40, color: '#88bab2' },
+      { id: 4, position: 0.58, color: '#c0dcd8' },
+      { id: 5, position: 0.66, color: '#b0a0e0' },
+      { id: 6, position: 0.75, color: '#e04040' },
+      { id: 7, position: 0.88, color: '#e87040' },
+      { id: 8, position: 1.00, color: '#f5e5c0' },
+    ]
+  },
+  {
+    id: 'thermal', name: 'THERMAL',
+    stops: [
+      { id: 1, position: 0,    color: '#0d1f2d' },
+      { id: 2, position: 0.33, color: '#7b5ea7' },
+      { id: 3, position: 0.66, color: '#e8604c' },
+      { id: 4, position: 1,    color: '#fff8e7' },
+    ]
+  },
+  {
+    id: 'sunset', name: 'SUNSET',
+    stops: [
+      { id: 1, position: 0,   color: '#1a0533' },
+      { id: 2, position: 0.4, color: '#c0392b' },
+      { id: 3, position: 0.7, color: '#e67e22' },
+      { id: 4, position: 1,   color: '#f9ca24' },
+    ]
+  },
+  {
+    id: 'ocean', name: 'OCEAN',
+    stops: [
+      { id: 1, position: 0,    color: '#0a0a2e' },
+      { id: 2, position: 0.4,  color: '#0077b6' },
+      { id: 3, position: 0.75, color: '#00b4d8' },
+      { id: 4, position: 1,    color: '#e0f7ff' },
+    ]
+  },
+  {
+    id: 'forest', name: 'FOREST',
+    stops: [
+      { id: 1, position: 0,    color: '#0a1a0a' },
+      { id: 2, position: 0.35, color: '#2d5a1b' },
+      { id: 3, position: 0.7,  color: '#8fbc35' },
+      { id: 4, position: 1,    color: '#f0e68c' },
+    ]
+  },
+  {
+    id: 'noir', name: 'NOIR',
+    stops: [
+      { id: 1, position: 0, color: '#000000' },
+      { id: 2, position: 1, color: '#ffffff' },
+    ]
+  },
+  {
+    id: 'rose', name: 'ROSE',
+    stops: [
+      { id: 1, position: 0,   color: '#2d0020' },
+      { id: 2, position: 0.4, color: '#8b1a4a' },
+      { id: 3, position: 0.7, color: '#e75480' },
+      { id: 4, position: 1,   color: '#ffd6e7' },
+    ]
+  },
+  {
+    id: 'ice', name: 'ICE',
+    stops: [
+      { id: 1, position: 0,   color: '#0a0a20' },
+      { id: 2, position: 0.4, color: '#4a4a8f' },
+      { id: 3, position: 0.7, color: '#a8d8ea' },
+      { id: 4, position: 1,   color: '#f0f8ff' },
+    ]
+  },
+  {
+    id: 'infrared', name: 'INFRARED',
+    stops: [
+      { id: 1, position: 0,    color: '#000000' },
+      { id: 2, position: 0.25, color: '#0000cc' },
+      { id: 3, position: 0.5,  color: '#cc0000' },
+      { id: 4, position: 0.75, color: '#ffcc00' },
+      { id: 5, position: 1,    color: '#ffffff' },
+    ]
+  },
+  {
+    id: 'gold', name: 'GOLD',
+    stops: [
+      { id: 1, position: 0,   color: '#1a0e00' },
+      { id: 2, position: 0.5, color: '#8b6914' },
+      { id: 3, position: 1,   color: '#ffd700' },
+    ]
+  },
+];
+
+// ─── ADJUSTMENTS CONFIG ────────────────────────────────────────────────────────
+const ADJ_CONFIG = [
+  { key: 'brightness', label: 'Brightness', min: -100, max: 100,  default: 0,   fmt: v => (v>0?'+':'')+v       },
+  { key: 'contrast',   label: 'Contrast',   min: -100, max: 100,  default: 0,   fmt: v => (v>0?'+':'')+v       },
+  { key: 'mix',        label: 'Intensity',  min: 0,    max: 100,  default: 100, fmt: v => v+'%'                },
+  { key: 'blur',       label: 'Blur',       min: 0,    max: 20,   default: 0,   fmt: v => v>0?v+'px':'off'     },
+  { key: 'grain',      label: 'Grain',      min: 0,    max: 100,  default: 0,   fmt: v => v>0?v+'%':'off'      },
+  { key: 'vignette',   label: 'Vignette',   min: 0,    max: 100,  default: 0,   fmt: v => v>0?v+'%':'off'      },
+];
+
+// ─── CANVAS REFS ──────────────────────────────────────────────────────────────
+const outputCanvas  = document.getElementById('outputCanvas');
+const ctx           = outputCanvas.getContext('2d');
+const offscreen     = document.createElement('canvas');
+const offCtx        = offscreen.getContext('2d');
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? [parseInt(r[1],16), parseInt(r[2],16), parseInt(r[3],16)] : [0,0,0];
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+}
+
+function formatTime(s) {
+  const m = Math.floor(s/60);
+  return m + ':' + String(Math.floor(s%60)).padStart(2,'0');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── LUT BUILDING ─────────────────────────────────────────────────────────────
+function buildLUT(stops, brightness, contrast) {
+  const sorted = [...stops].sort((a,b) => a.position - b.position);
+  const lut = new Uint8ClampedArray(256 * 3);
+
+  // Contrast factor
+  const cVal = (contrast / 100) * 127;
+  const cFactor = (259 * (cVal + 255)) / (255 * (259 - cVal));
+  const bVal = brightness * 2.55;
+
+  for (let i = 0; i < 256; i++) {
+    // Apply brightness/contrast to luminance
+    let lum = i + bVal;
+    lum = cFactor * (lum - 128) + 128;
+    lum = Math.max(0, Math.min(255, lum));
+    const t = lum / 255;
+
+    // Find bounding stops
+    let lo = sorted[0], hi = sorted[sorted.length - 1];
+    for (let j = 0; j < sorted.length - 1; j++) {
+      if (t >= sorted[j].position && t <= sorted[j+1].position) {
+        lo = sorted[j]; hi = sorted[j+1]; break;
+      }
+    }
+
+    const range = hi.position - lo.position;
+    const f = range < 0.001 ? 0 : (t - lo.position) / range;
+    const lRgb = hexToRgb(lo.color);
+    const hRgb = hexToRgb(hi.color);
+
+    lut[i*3]   = lRgb[0] + (hRgb[0] - lRgb[0]) * f;
+    lut[i*3+1] = lRgb[1] + (hRgb[1] - lRgb[1]) * f;
+    lut[i*3+2] = lRgb[2] + (hRgb[2] - lRgb[2]) * f;
+  }
+  return lut;
+}
+
+function interpolateGradientColor(stops, position) {
+  const sorted = [...stops].sort((a,b) => a.position - b.position);
+  let lo = sorted[0], hi = sorted[sorted.length-1];
+  for (let j = 0; j < sorted.length-1; j++) {
+    if (position >= sorted[j].position && position <= sorted[j+1].position) {
+      lo = sorted[j]; hi = sorted[j+1]; break;
+    }
+  }
+  const range = hi.position - lo.position;
+  const f = range < 0.001 ? 0 : (position - lo.position) / range;
+  const lRgb = hexToRgb(lo.color);
+  const hRgb = hexToRgb(hi.color);
+  return rgbToHex(
+    lRgb[0] + (hRgb[0]-lRgb[0])*f,
+    lRgb[1] + (hRgb[1]-lRgb[1])*f,
+    lRgb[2] + (hRgb[2]-lRgb[2])*f
+  );
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderFrame() {
+  if (!state.source) return;
+
+  const W = outputCanvas.width;
+  const H = outputCanvas.height;
+  const { source, sourceType, adjustments, stops } = state;
+
+  const sw = sourceType === 'video' ? source.videoWidth  : source.naturalWidth;
+  const sh = sourceType === 'video' ? source.videoHeight : source.naturalHeight;
+
+  if (sw === 0 || sh === 0) return;
+
+  offscreen.width  = W;
+  offscreen.height = H;
+
+  // Draw source to offscreen (cover-fit)
+  const scale = Math.max(W/sw, H/sh);
+  const dw = sw * scale, dh = sh * scale;
+  const dx = (W - dw) / 2, dy = (H - dh) / 2;
+
+  offCtx.clearRect(0, 0, W, H);
+
+  if (adjustments.blur > 0) {
+    offCtx.filter = `blur(${adjustments.blur}px)`;
+  } else {
+    offCtx.filter = 'none';
+  }
+  offCtx.drawImage(source, dx, dy, dw, dh);
+  offCtx.filter = 'none';
+
+  // Process pixels
+  const imgData = offCtx.getImageData(0, 0, W, H);
+  const data    = imgData.data;
+  const lut     = buildLUT(stops, adjustments.brightness, adjustments.contrast);
+  const mixF    = adjustments.mix / 100;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i+1], b = data[i+2];
+    const lum = (0.299*r + 0.587*g + 0.114*b + 0.5) | 0;
+    const mr = lut[lum*3], mg = lut[lum*3+1], mb = lut[lum*3+2];
+    data[i]   = r + (mr - r) * mixF;
+    data[i+1] = g + (mg - g) * mixF;
+    data[i+2] = b + (mb - b) * mixF;
+  }
+
+  // Grain
+  if (adjustments.grain > 0) {
+    const strength = adjustments.grain * 1.2;
+    for (let i = 0; i < data.length; i += 4) {
+      const n = (Math.random() - 0.5) * strength;
+      data[i]   = Math.max(0, Math.min(255, data[i]   + n));
+      data[i+1] = Math.max(0, Math.min(255, data[i+1] + n));
+      data[i+2] = Math.max(0, Math.min(255, data[i+2] + n));
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  // Vignette (drawn on top)
+  if (adjustments.vignette > 0) {
+    const v = adjustments.vignette / 100;
+    const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.72);
+    grad.addColorStop(0,   'rgba(0,0,0,0)');
+    grad.addColorStop(0.5, 'rgba(0,0,0,0)');
+    grad.addColorStop(1,   `rgba(0,0,0,${v * 0.85})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function startRenderLoop() {
+  const loop = () => {
+    renderFrame();
+    if (state.isPlaying && state.sourceType === 'video') {
+      state.animFrame = requestAnimationFrame(loop);
+    }
+  };
+  state.animFrame = requestAnimationFrame(loop);
+}
+
+function stopRenderLoop() {
+  if (state.animFrame) {
+    cancelAnimationFrame(state.animFrame);
+    state.animFrame = null;
+  }
+}
+
+// ─── CANVAS SIZING ────────────────────────────────────────────────────────────
+const RATIOS = { '16:9':[16,9], '1:1':[1,1], '4:3':[4,3], '9:16':[9,16] };
+
+function updateCanvasSize() {
+  const area   = document.getElementById('canvasArea');
+  const wrap   = document.getElementById('canvasWrapper');
+  const [rw, rh] = RATIOS[state.aspectRatio];
+
+  const availW = area.clientWidth  - 64;
+  const availH = area.clientHeight - 64;
+
+  let dispW, dispH;
+  if (availW / availH > rw / rh) {
+    dispH = Math.min(availH, 820);
+    dispW = Math.round(dispH * rw / rh);
+  } else {
+    dispW = Math.min(availW, 820);
+    dispH = Math.round(dispW * rh / rw);
+  }
+
+  // Internal canvas resolution (max 1080 on longest side)
+  const maxDim = 1080;
+  let canvW, canvH;
+  if (rw >= rh) { canvW = maxDim; canvH = Math.round(maxDim * rh / rw); }
+  else          { canvH = maxDim; canvW = Math.round(maxDim * rw / rh); }
+
+  outputCanvas.width  = canvW;
+  outputCanvas.height = canvH;
+  outputCanvas.style.width  = dispW + 'px';
+  outputCanvas.style.height = dispH + 'px';
+  wrap.style.width  = dispW + 'px';
+  wrap.style.height = dispH + 'px';
+
+  if (state.source) renderFrame();
+}
+
+// ─── GRADIENT PREVIEW ─────────────────────────────────────────────────────────
+function updateGradientPreview() {
+  const sorted = [...state.stops].sort((a,b) => a.position - b.position);
+  const css = sorted.map(s => `${s.color} ${s.position*100}%`).join(', ');
+  document.getElementById('gradientPreview').style.background =
+    `linear-gradient(to right, ${css})`;
+}
+
+// ─── STOPS LIST ───────────────────────────────────────────────────────────────
+let dragSrcId = null;
+
+function renderStopsList() {
+  const list   = document.getElementById('stopsList');
+  const sorted = [...state.stops].sort((a,b) => a.position - b.position);
+  list.innerHTML = '';
+
+  sorted.forEach(stop => {
+    const item = document.createElement('div');
+    item.className = 'stop-item';
+    item.draggable = true;
+    item.dataset.id = stop.id;
+
+    const canRemove = state.stops.length > 2;
+    const pct = Math.round(stop.position * 100);
+
+    item.innerHTML = `
+      <div class="drag-handle" title="Drag to reorder">⠿</div>
+      <div class="stop-swatch" style="background:${stop.color}">
+        <input type="color" value="${stop.color}" data-id="${stop.id}">
+      </div>
+      <input type="range" class="stop-slider" min="0" max="100" value="${pct}" data-id="${stop.id}" step="1">
+      <span class="stop-pct" data-id="${stop.id}">${pct}%</span>
+      ${canRemove
+        ? `<button class="stop-remove" data-id="${stop.id}" title="Remove stop">×</button>`
+        : `<div style="width:18px"></div>`}
+    `;
+
+    // Drag events — swaps colors between source and target stop
+    item.addEventListener('dragstart', e => {
+      dragSrcId = stop.id;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      list.querySelectorAll('.stop-item').forEach(i => i.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    item.addEventListener('dragenter', () => {
+      if (dragSrcId !== stop.id) item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over');
+    });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      if (dragSrcId === stop.id) return;
+      const src = state.stops.find(s => s.id === dragSrcId);
+      const tgt = state.stops.find(s => s.id === stop.id);
+      if (src && tgt) {
+        [src.color, tgt.color] = [tgt.color, src.color];
+        state.activePreset = null;
+        renderStopsList();
+        updateGradientPreview();
+        if (state.source) renderFrame();
+      }
+    });
+
+    list.appendChild(item);
+  });
+
+  // Color picker events
+  list.querySelectorAll('input[type="color"]').forEach(input => {
+    input.addEventListener('input', e => {
+      const id = +e.target.dataset.id;
+      const stop = state.stops.find(s => s.id === id);
+      if (!stop) return;
+      stop.color = e.target.value;
+      e.target.closest('.stop-swatch').style.background = stop.color;
+      state.activePreset = null;
+      updateGradientPreview();
+      if (state.source) renderFrame();
+    });
+  });
+
+  // Position slider events
+  list.querySelectorAll('.stop-slider').forEach(slider => {
+    slider.addEventListener('input', e => {
+      const id = +e.target.dataset.id;
+      const stop = state.stops.find(s => s.id === id);
+      if (!stop) return;
+      stop.position = parseInt(e.target.value) / 100;
+      list.querySelector(`.stop-pct[data-id="${id}"]`).textContent = e.target.value + '%';
+      state.activePreset = null;
+      updateGradientPreview();
+      if (state.source) renderFrame();
+    });
+  });
+
+  // Remove events
+  list.querySelectorAll('.stop-remove').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = +e.target.dataset.id;
+      state.stops = state.stops.filter(s => s.id !== id);
+      state.activePreset = null;
+      renderStopsList();
+      updateGradientPreview();
+      if (state.source) renderFrame();
+    });
+  });
+}
+
+// ─── PRESETS ──────────────────────────────────────────────────────────────────
+function loadPresets() {
+  const saved = JSON.parse(localStorage.getItem('gradmap-presets') || '[]');
+  state.presets = [...BUILTIN_PRESETS, ...saved];
+}
+
+function renderPresets() {
+  const grid = document.getElementById('presetsGrid');
+  grid.innerHTML = '';
+
+  state.presets.forEach(preset => {
+    const item = document.createElement('div');
+    item.className = 'preset-item' + (state.activePreset === preset.id ? ' active' : '');
+
+    const sorted = [...preset.stops].sort((a,b) => a.position - b.position);
+    const gradCss = sorted.map(s => `${s.color} ${s.position*100}%`).join(', ');
+
+    item.innerHTML = `
+      <div class="preset-gradient" style="background:linear-gradient(to right,${gradCss})"></div>
+      <div class="preset-name">${preset.name}</div>
+      ${preset.isUser ? `<button class="preset-del" title="Delete preset">×</button>` : ''}
+    `;
+
+    item.addEventListener('click', e => {
+      if (e.target.classList.contains('preset-del')) return;
+      state.stops = preset.stops.map(s => ({...s}));
+      state.activePreset = preset.id;
+      renderStopsList();
+      updateGradientPreview();
+      if (state.source) renderFrame();
+      renderPresets();
+    });
+
+    const delBtn = item.querySelector('.preset-del');
+    if (delBtn) {
+      delBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const saved = JSON.parse(localStorage.getItem('gradmap-presets') || '[]');
+        const filtered = saved.filter(p => p.id !== preset.id);
+        localStorage.setItem('gradmap-presets', JSON.stringify(filtered));
+        state.presets = state.presets.filter(p => p.id !== preset.id);
+        if (state.activePreset === preset.id) state.activePreset = null;
+        renderPresets();
+        showToast('PRESET DELETED');
+      });
+    }
+
+    grid.appendChild(item);
+  });
+}
+
+document.getElementById('savePresetBtn').addEventListener('click', () => {
+  const name = prompt('Name your preset:');
+  if (!name || !name.trim()) return;
+
+  const preset = {
+    id:     'user-' + Date.now(),
+    name:   name.trim().toUpperCase().slice(0, 12),
+    stops:  state.stops.map(s => ({...s})),
+    isUser: true,
+  };
+
+  const saved = JSON.parse(localStorage.getItem('gradmap-presets') || '[]');
+  saved.push(preset);
+  localStorage.setItem('gradmap-presets', JSON.stringify(saved));
+
+  state.presets.push(preset);
+  state.activePreset = preset.id;
+  renderPresets();
+  showToast('PRESET SAVED');
+});
+
+// ─── SLIDERS ──────────────────────────────────────────────────────────────────
+function renderSliders() {
+  const group = document.getElementById('sliderGroup');
+  group.innerHTML = '';
+
+  ADJ_CONFIG.forEach(cfg => {
+    const val = state.adjustments[cfg.key];
+    const item = document.createElement('div');
+    item.className = 'slider-item';
+    item.innerHTML = `
+      <div class="slider-header">
+        <span class="slider-label">${cfg.label}</span>
+        <span class="slider-value" id="val-${cfg.key}">${cfg.fmt(val)}</span>
+      </div>
+      <input type="range" class="slider"
+        min="${cfg.min}" max="${cfg.max}" value="${val}" step="1" data-key="${cfg.key}">
+    `;
+
+    item.querySelector('input').addEventListener('input', e => {
+      const v = +e.target.value;
+      state.adjustments[cfg.key] = v;
+      document.getElementById('val-' + cfg.key).textContent = cfg.fmt(v);
+      if (state.source) renderFrame();
+    });
+
+    group.appendChild(item);
+  });
+}
+
+document.getElementById('resetAdjBtn').addEventListener('click', () => {
+  ADJ_CONFIG.forEach(c => { state.adjustments[c.key] = c.default; });
+  renderSliders();
+  if (state.source) renderFrame();
+});
+
+// ─── ADD STOP ─────────────────────────────────────────────────────────────────
+function addStopAtPosition(position) {
+  const color = interpolateGradientColor(state.stops, position);
+  state.stops.push({ id: ++state.stopIdCounter, position, color });
+  state.activePreset = null;
+  renderStopsList();
+  updateGradientPreview();
+  if (state.source) renderFrame();
+}
+
+document.getElementById('invertStopsBtn').addEventListener('click', () => {
+  state.stops = state.stops.map(s => ({ ...s, position: 1 - s.position }));
+  state.activePreset = null;
+  renderStopsList();
+  updateGradientPreview();
+  if (state.source) renderFrame();
+});
+
+document.getElementById('addStopBtn').addEventListener('click', () => {
+  // Insert at midpoint of largest gap
+  const sorted = [...state.stops].sort((a,b) => a.position - b.position);
+  let maxGap = 0, pos = 0.5;
+  for (let i = 0; i < sorted.length-1; i++) {
+    const gap = sorted[i+1].position - sorted[i].position;
+    if (gap > maxGap) { maxGap = gap; pos = (sorted[i].position + sorted[i+1].position) / 2; }
+  }
+  addStopAtPosition(Math.round(pos * 100) / 100);
+});
+
+document.getElementById('gradientPreview').addEventListener('click', e => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pos  = Math.round(((e.clientX - rect.left) / rect.width) * 100) / 100;
+  addStopAtPosition(Math.max(0, Math.min(1, pos)));
+});
+
+// ─── FILE HANDLING ────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const isImg = file.type.startsWith('image/');
+  const isVid = file.type.startsWith('video/');
+  if (!isImg && !isVid) { showToast('UNSUPPORTED FILE TYPE'); return; }
+
+  // Cleanup existing video
+  if (state.source && state.sourceType === 'video') {
+    state.source.pause();
+    state.isPlaying = false;
+    stopRenderLoop();
+  }
+
+  const url = URL.createObjectURL(file);
+
+  if (isImg) {
+    const img = new Image();
+    img.onload = () => {
+      state.source     = img;
+      state.sourceType = 'image';
+      document.getElementById('uploadPrompt').style.display  = 'none';
+      document.getElementById('videoSection').style.display  = 'none';
+      renderFrame();
+    };
+    img.src = url;
+
+  } else {
+    const video = document.createElement('video');
+    video.src       = url;
+    video.loop      = true;
+    video.muted     = true;
+    video.playsInline = true;
+
+    video.onloadedmetadata = () => {
+      state.source     = video;
+      state.sourceType = 'video';
+      document.getElementById('uploadPrompt').style.display = 'none';
+      document.getElementById('videoSection').style.display = 'block';
+
+      video.ontimeupdate = () => {
+        document.getElementById('videoProgress').value =
+          (video.currentTime / video.duration) * 100 || 0;
+        document.getElementById('videoTime').textContent =
+          formatTime(video.currentTime);
+      };
+
+      video.play().then(() => {
+        state.isPlaying = true;
+        document.getElementById('playBtn').textContent = '⏸';
+        startRenderLoop();
+      }).catch(() => {
+        renderFrame();
+      });
+    };
+  }
+}
+
+// File input
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+// Upload prompt click
+document.getElementById('uploadPrompt').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
+// Drag & drop on canvas area
+const canvasArea = document.getElementById('canvasArea');
+
+canvasArea.addEventListener('dragover', e => {
+  e.preventDefault();
+  document.getElementById('uploadPrompt').classList.add('drag-over');
+});
+
+canvasArea.addEventListener('dragleave', e => {
+  if (!canvasArea.contains(e.relatedTarget)) {
+    document.getElementById('uploadPrompt').classList.remove('drag-over');
+  }
+});
+
+canvasArea.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('uploadPrompt').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+// ─── VIDEO CONTROLS ───────────────────────────────────────────────────────────
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (!state.source || state.sourceType !== 'video') return;
+  const video = state.source;
+
+  if (state.isPlaying) {
+    video.pause();
+    state.isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶';
+    stopRenderLoop();
+    renderFrame();
+  } else {
+    video.play();
+    state.isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏸';
+    startRenderLoop();
+  }
+});
+
+document.getElementById('videoProgress').addEventListener('input', e => {
+  if (!state.source || state.sourceType !== 'video') return;
+  const video = state.source;
+  video.currentTime = (e.target.value / 100) * video.duration;
+  if (!state.isPlaying) renderFrame();
+});
+
+// ─── ASPECT RATIO ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.ratio-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.aspectRatio = btn.dataset.ratio;
+    updateCanvasSize();
+  });
+});
+
+// ─── DOWNLOAD ─────────────────────────────────────────────────────────────────
+document.getElementById('downloadBtn').addEventListener('click', async () => {
+  if (!state.source) { showToast('UPLOAD AN IMAGE OR VIDEO FIRST'); return; }
+
+  if (state.sourceType === 'image') {
+    outputCanvas.toBlob(blob => {
+      const a = Object.assign(document.createElement('a'), {
+        href:     URL.createObjectURL(blob),
+        download: 'gradmap-export.png',
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('IMAGE EXPORTED');
+    }, 'image/png');
+
+  } else {
+    // Video export via MediaRecorder
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm';
+
+    const stream   = outputCanvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
+    const chunks   = [];
+
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const a = Object.assign(document.createElement('a'), {
+        href:     URL.createObjectURL(blob),
+        download: 'gradmap-export.webm',
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+      document.getElementById('recordingBadge').classList.remove('visible');
+      document.getElementById('downloadBtn').textContent = 'EXPORT';
+      showToast('VIDEO EXPORTED');
+    };
+
+    const video = state.source;
+    video.currentTime = 0;
+    await new Promise(res => { video.onseeked = res; });
+
+    document.getElementById('recordingBadge').classList.add('visible');
+    document.getElementById('downloadBtn').textContent = 'RECORDING…';
+
+    recorder.start(100);
+    state.isPlaying = true;
+    video.play();
+
+    const recordLoop = () => {
+      renderFrame();
+      if (!video.ended && !video.paused) {
+        requestAnimationFrame(recordLoop);
+      } else {
+        recorder.stop();
+        state.isPlaying = false;
+        document.getElementById('playBtn').textContent = '▶';
+      }
+    };
+    requestAnimationFrame(recordLoop);
+  }
+});
+
+// ─── RESIZE ───────────────────────────────────────────────────────────────────
+window.addEventListener('resize', updateCanvasSize);
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+function init() {
+  loadPresets();
+  updateGradientPreview();
+  renderStopsList();
+  renderPresets();
+  renderSliders();
+  updateCanvasSize();
+}
+
+init();
+</script>
+</body>
+</html>
