@@ -1853,6 +1853,10 @@ document.getElementById('grdInput').addEventListener('change', e => {
   let x = 0, y = 0, vx = 3.2, vy = 2.4, raf = null;
   const W_IMG = 180;
 
+  // Audio
+  const audio = new Audio('easter-egg.wav');
+  audio.loop = true;
+
   function step() {
     const ow = overlay.clientWidth;
     const oh = overlay.clientHeight;
@@ -1878,11 +1882,15 @@ document.getElementById('grdInput').addEventListener('change', e => {
     y = Math.random() * (oh - 200);
     overlay.classList.add('active');
     raf = requestAnimationFrame(step);
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
   }
 
   function stopEgg() {
     overlay.classList.remove('active');
     cancelAnimationFrame(raf);
+    audio.pause();
+    audio.currentTime = 0;
   }
 
   document.addEventListener('keydown', e => {
