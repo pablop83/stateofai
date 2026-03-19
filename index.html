@@ -1732,7 +1732,14 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
       ? 'video/webm;codecs=vp9'
       : 'video/webm';
 
-    const stream   = outputCanvas.captureStream(30);
+    const stream = outputCanvas.captureStream(30);
+
+    // Add audio from the original video if available
+    try {
+      const vidStream = (video.captureStream || video.mozCaptureStream).call(video);
+      vidStream.getAudioTracks().forEach(track => stream.addTrack(track));
+    } catch(e) { /* no audio or not supported */ }
+
     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
     const chunks   = [];
 
